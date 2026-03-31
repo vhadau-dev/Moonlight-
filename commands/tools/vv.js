@@ -26,7 +26,7 @@ moon({
       }
 
       // ── 2. Must be a reply ────────────────────────────────────────────────
-      const contextInfo = m.message?.extendedTextMessage?.contextInfo;
+      const contextInfo = m.message?.extendedTextMessage?.contextInfo || m.message?.imageMessage?.contextInfo || m.message?.videoMessage?.contextInfo;
       const quotedMsg   = contextInfo?.quotedMessage;
 
       if (!quotedMsg) {
@@ -34,21 +34,29 @@ moon({
       }
 
       // ── 3. Find the view-once content ─────────────────────────────────────
-      const viewOnce =
+      // Baileys sometimes nests the view-once message differently
+      let viewOnce =
         quotedMsg.viewOnceMessage?.message ||
         quotedMsg.viewOnceMessageV2?.message ||
         quotedMsg.viewOnceMessageV2Extension?.message ||
         null;
 
+      // If not found in standard wrappers, check if the quoted message itself is the media
+      // but has the viewOnce property set to true inside the media message
+      if (!viewOnce) {
+        if (quotedMsg.imageMessage?.viewOnce) viewOnce = quotedMsg;
+        else if (quotedMsg.videoMessage?.viewOnce) viewOnce = quotedMsg;
+        else if (quotedMsg.audioMessage?.viewOnce) viewOnce = quotedMsg;
+      }
+
       if (!viewOnce) {
         return reply('❌ The replied message is not a view-once message.');
       }
 
-      const imageMsg  = viewOnce.imageMessage;
-      const videoMsg  = viewOnce.videoMessage;
-      const audioMsg  = viewOnce.audioMessage;
+      // Extract the actual media message
+      const mediaMsg = viewOnce.imageMessage || viewOnce.videoMessage || viewOnce.audioMessage;
 
-      if (!imageMsg && !videoMsg && !audioMsg) {
+      if (!mediaMsg) {
         return reply('❌ No supported media found in the view-once message.');
       }
 
@@ -57,10 +65,9 @@ moon({
         {
           message: viewOnce,
           key: {
-            ...m.key,
+            remoteJid: jid,
             id: contextInfo.stanzaId,
-            participant: contextInfo.participant,
-            remoteJid: jid
+            participant: contextInfo.participant || sender
           }
         },
         'buffer',
@@ -72,17 +79,17 @@ moon({
       );
 
       // ── 5. Re-send as normal media ────────────────────────────────────────
-      if (imageMsg) {
+      if (viewOnce.imageMessage) {
         await sock.sendMessage(jid, {
           image:   buffer,
           caption: '👁️ *View-once revealed by admin*'
         }, { quoted: m });
-      } else if (videoMsg) {
+      } else if (viewOnce.videoMessage) {
         await sock.sendMessage(jid, {
           video:   buffer,
           caption: '👁️ *View-once video revealed by admin*'
         }, { quoted: m });
-      } else if (audioMsg) {
+      } else if (viewOnce.audioMessage) {
         await sock.sendMessage(jid, {
           audio:   buffer,
           mimetype: 'audio/ogg; codecs=opus',
@@ -92,7 +99,7 @@ moon({
 
     } catch (err) {
       console.error('vv command error:', err);
-      reply('❌ Failed to reveal the view-once message.');
+      reply('❌ Failed to reveal the view-once message. It might have already been opened or expired.');
     }
   }
 });
