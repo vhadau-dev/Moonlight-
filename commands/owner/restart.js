@@ -1,15 +1,21 @@
 const axios = require("axios");
+const fs = require('fs');
+const config = require('../../config');
 
 moon({
   name: "restart",
   category: "owner",
   async execute(sock, jid, sender, args, m, { reply }) {
     try {
-      // Check if sender is the owner (optional, but recommended)
-      // If you have an owner list, add a check here. 
-      // For now, I'll let it run since you asked to fix it.
+      const senderNumber = sender.split('@')[0];
+      if (!config.OWNER_NUMBERS || !config.OWNER_NUMBERS.includes(senderNumber)) {
+        return reply("❌ This command is strictly for owners only.");
+      }
 
       reply("🔄 *Restarting the bot...* Please wait a few seconds.");
+
+      // Save restart info to send confirmation message after startup
+      fs.writeFileSync('./restart_info.json', JSON.stringify({ jid, m }));
 
       // Pterodactyl API details
       const api_token = "ptlc_TE7rx4bmMzYteWFfVQG1QYd0RXNnSmjfWtYbNdgFzyM";
@@ -27,11 +33,9 @@ moon({
         }
       });
 
-      // The bot will now be killed by the panel and automatically started again.
-      // No need to process.exit() as the panel handles the power signal.
-
     } catch (err) {
       console.error("restart command error:", err);
+      if (fs.existsSync('./restart_info.json')) fs.unlinkSync('./restart_info.json');
       reply("❌ Failed to restart the bot via panel API. Check your API token and server ID.");
     }
   }

@@ -77,6 +77,17 @@ async function startBot() {
       if (connection === 'open') {
         console.log(`✅ ${BOT_NAME} online`);
 
+        // ✅ POST-RESTART NOTIFICATION
+        if (fs.existsSync('./restart_info.json')) {
+          try {
+            const restartData = JSON.parse(fs.readFileSync('./restart_info.json', 'utf8'));
+            await sock.sendMessage(restartData.jid, { text: "✅ *Restarting done!* The bot is back online and ready." }, { quoted: restartData.m });
+            fs.unlinkSync('./restart_info.json');
+          } catch (err) {
+            console.error('Failed to send restart notification:', err);
+          }
+        }
+
         // ✅ START CARD SYSTEM
         startCardSystem(sock);
 
@@ -154,9 +165,21 @@ async function startBot() {
             m.message?.extendedTextMessage?.text ||
             '';
 
-          if (!body.startsWith(PREFIX)) continue;
+          let prefix = PREFIX;
+          let isCmd = body.startsWith(PREFIX);
 
-          const args = body.slice(PREFIX.length).trim().split(/ +/);
+          if (!isCmd && body.length > 0) {
+            // Check if the body matches any command name or alias without prefix
+            const possibleCmd = body.trim().split(/ +/)[0].toLowerCase();
+            if (commands.has(possibleCmd) || aliases.has(possibleCmd)) {
+              isCmd = true;
+              prefix = '';
+            }
+          }
+
+          if (!isCmd) continue;
+
+          const args = body.slice(prefix.length).trim().split(/ +/);
           const cmdName = args.shift()?.toLowerCase();
 
           const command = commands.get(cmdName) || aliases.get(cmdName);
