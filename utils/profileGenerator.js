@@ -12,22 +12,20 @@ async function generateProfileImage(userData) {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
+    const DEFAULT_BG = 'https://files.catbox.moe/d04wzu.jpg';
+
     // 1. Draw Background
     try {
-        if (userData.background) {
-            const bgImg = await loadImage(userData.background);
-            ctx.drawImage(bgImg, 0, 0, width, height);
-        } else {
-            // Default dark gradient background
-            const gradient = ctx.createLinearGradient(0, 0, width, height);
-            gradient.addColorStop(0, '#0f0c29');
-            gradient.addColorStop(0.5, '#302b63');
-            gradient.addColorStop(1, '#24243e');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
-        }
+        const bgImg = await loadImage(userData.background || DEFAULT_BG);
+        ctx.drawImage(bgImg, 0, 0, width, height);
     } catch (err) {
-        ctx.fillStyle = '#1a1a1a';
+        console.error("Failed to load background image:", err);
+        // Fallback to dark gradient
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#0f0c29');
+        gradient.addColorStop(0.5, '#302b63');
+        gradient.addColorStop(1, '#24243e');
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, width, height);
     }
 

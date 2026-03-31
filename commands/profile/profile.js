@@ -50,13 +50,16 @@ moon({
       const bank = user.bank || 0;
       const total = wallet + bank;
 
+      // Clean up bio for Status (short version)
+      const cleanStatus = user.bio && user.bio !== '.' ? (user.bio.length > 30 ? user.bio.substring(0, 27) + "..." : user.bio) : "Active";
+
       const msg = `
 ╭━━━★彡 𝚳𝚯𝚯𝚴𝐋𝚰𝐆𝚮𝚻
  *Name*    : ${user.username || pushName || 'N/A'}
  *Age*      : ${user.age || 'N/A'}
 
 *⳹─❖────────❖─⳹*
- *Status*  : ${user.bio || 'Active'}
+ *Status*  : ${cleanStatus}
  *Role*    : ${role}
 
  *Wallet*  : ${wallet.toLocaleString()}
