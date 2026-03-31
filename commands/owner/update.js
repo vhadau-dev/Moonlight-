@@ -1,6 +1,7 @@
 const { exec } = require('child_process');
 const config = require('../../config');
 const path = require('path');
+const fs = require('fs');
 
 let isUpdating = false;
 
@@ -24,11 +25,11 @@ moon({
 
       const tempDir = path.join(__dirname, '../../.temp_update');
       const botDir = path.join(__dirname, '../../');
-      const repoUrl = "https://github.com/vhadau-dev/Moonlight.git";
-
+      
+      // We pull the URL from the local git config to keep it private
       const cmd = `
         rm -rf "${tempDir}" &&
-        git clone "${repoUrl}" "${tempDir}" &&
+        git clone "$(git config --get remote.origin.url)" "${tempDir}" &&
         cd "${tempDir}" &&
         rm -f config.js &&
         rm -rf sessions/ &&
@@ -41,7 +42,7 @@ moon({
         isUpdating = false;
         if (error) {
           console.error("Update error:", error);
-          return reply("❌ *Update failed!*\n\n" + error.message);
+          return reply("❌ *Update failed!*");
         }
         
         reply(`✅ *${config.BOT_NAME}* update done. Use *restart* to apply changes.`);

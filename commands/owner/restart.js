@@ -1,4 +1,3 @@
-const axios = require("axios");
 const fs = require('fs');
 const config = require('../../config');
 
@@ -12,31 +11,21 @@ moon({
         return reply("❌ This command is strictly for owners only.");
       }
 
-      reply("🔄 *Restarting the bot...* Please wait a few seconds.");
-
       // Save restart info to send confirmation message after startup
       fs.writeFileSync('./restart_info.json', JSON.stringify({ jid, m }));
 
-      // Pterodactyl API details
-      const api_token = "ptlc_TE7rx4bmMzYteWFfVQG1QYd0RXNnSmjfWtYbNdgFzyM";
-      const server_id = "24c41350";
-      const api_url = `https://panel.spaceify.eu/api/client/servers/${server_id}/power`;
+      await reply(`🔄 *${config.BOT_NAME}* is restarting...`);
 
-      // Tell the panel to restart the server
-      await axios.post(api_url, {
-        signal: "restart"
-      }, {
-        headers: {
-          "Authorization": `Bearer ${api_token}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        }
-      });
+      // Small delay to ensure message is sent before exit
+      setTimeout(() => {
+        process.exit(0); 
+        // This will trigger the panel's auto-restart feature
+      }, 1500);
 
     } catch (err) {
       console.error("restart command error:", err);
       if (fs.existsSync('./restart_info.json')) fs.unlinkSync('./restart_info.json');
-      reply("❌ Failed to restart the bot via panel API. Check your API token and server ID.");
+      reply("❌ Failed to initiate restart.");
     }
   }
 });
