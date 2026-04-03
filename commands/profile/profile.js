@@ -2,7 +2,41 @@ const User = require('../../models/User');
 const config = require('../../config');
 const { generateProfileImage } = require('../../utils/profileGenerator');
 const moment = require('moment-timezone');
+const { downloadMediaMessage } = require('@whiskeysockets/baileys');
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const os = require('os');
 
+// ── Helper: check if a number is an owner ──────────────────────────────────
+function isOwner(number) {
+  return config.OWNER_NUMBERS?.includes(number);
+}
+
+// ── Helper: convert video buffer → 5-second GIF buffer via ffmpeg ──────────
+async function videoToGif(videoBuffer) {
+  const tmpDir   = os.tmpdir();
+  const inFile   = path.join(tmpDir, `ml_vbg_${Date.now()}.mp4`);
+  const outFile  = path.join(tmpDir, `ml_vbg_${Date.now()}.gif`);
+
+  try {
+    fs.writeFileSync(inFile, videoBuffer);
+
+    // Trim to first 5 s, scale to 800px wide, 15 fps, decent quality
+    execSync(
+      `ffmpeg -y -t 5 -i "${inFile}" -vf "fps=15,scale=800:-1:flags=lanczos" -loop 0 "${outFile}"`,
+      { stdio: 'pipe' }
+    );
+
+    const gifBuffer = fs.readFileSync(outFile);
+    return gifBuffer;
+  } finally {
+    try { fs.unlinkSync(inFile);  } catch {}
+    try { fs.unlinkSync(outFile); } catch {}
+  }
+}
+
+// ── .profile / .p ──────────────────────────────────────────────────────────
 moon({
   name: "profile",
   category: "profile",
@@ -16,13 +50,12 @@ moon({
 
       const targetNumber = target.split('@')[0];
 
-      // Use the bot's standard findOrCreateWhatsApp to ensure data consistency
       const user = await findOrCreateWhatsApp(target, pushName);
       if (!user) return reply('❌ User not found.');
 
       // Determine Role
       let role = "citizen";
-      if (config.OWNER_NUMBERS?.includes(targetNumber)) {
+      if (isOwner(targetNumber)) {
         role = "Owner 👑";
       } else if (config.CARDS_CREATERS?.includes(targetNumber)) {
         role = "Card Creator";
@@ -39,12 +72,30 @@ moon({
       const wallet = user.balance || 0;
       const bank   = user.bank   || 0;
 
-      // Generate stylized profile image
+      // ── Decide background ─────────────────────────────────────────────────
+      // Owners may have a videoBackground (stored as base64 GIF data URI or a
+      // catbox URL ending in .gif).  Regular users only get a static image.
+      let backgroundForCard = user.backgroundImage || null;
+      let videoGifBuffer    = null;
+
+      if (isOwner(targetNumber) && user.videoBackground) {
+        // videoBackground is stored as a base64 string of the GIF
+        try {
+          videoGifBuffer = Buffer.from(user.videoBackground, 'base64');
+          // We still pass a static background to the canvas (first frame feel)
+          // The GIF is sent separately as the message video/gif
+          backgroundForCard = user.backgroundImage || null;
+        } catch {
+          videoGifBuffer = null;
+        }
+      }
+
+      // Generate stylized profile image (static canvas card)
       const profileBuffer = await generateProfileImage({
         username:     user.username || pushName || 'N/A',
         role:         role,
         pfp:          pfp,
-        background:   user.backgroundImage || null,
+        background:   backgroundForCard,
         bio:          user.bio || '.',
         wallet:       wallet,
         bank:         bank,
@@ -83,15 +134,41 @@ ${user.bio || 'No bio set'}
 🌙 Moonlight Haven
       `.trim();
 
-      return sock.sendMessage(
-        jid,
-        {
-          image:    profileBuffer,
-          caption:  msg,
-          mentions: [target]
-        },
-        { quoted: m }
-      );
+      // ── Send profile card ─────────────────────────────────────────────────
+      if (videoGifBuffer) {
+        // Owner with video background: send GIF (plays in chat) + profile card
+        await sock.sendMessage(
+          jid,
+          {
+            video:    videoGifBuffer,
+            gifPlayback: true,
+            caption:  '🎬 *Profile Background*',
+            mentions: [target]
+          },
+          { quoted: m }
+        );
+
+        return sock.sendMessage(
+          jid,
+          {
+            image:    profileBuffer,
+            caption:  msg,
+            mentions: [target]
+          },
+          { quoted: m }
+        );
+      } else {
+        // Regular users / owners without video bg: single image card
+        return sock.sendMessage(
+          jid,
+          {
+            image:    profileBuffer,
+            caption:  msg,
+            mentions: [target]
+          },
+          { quoted: m }
+        );
+      }
 
     } catch (err) {
       console.error("profile error:", err);
@@ -100,7 +177,7 @@ ${user.bio || 'No bio set'}
   }
 });
 
-// ── .setbc – set background image ──────────────────────────────────────────
+// ── .setbc – set background image (all users) ──────────────────────────────
 moon({
   name: "setbc",
   category: "profile",
@@ -122,6 +199,105 @@ moon({
     } catch (err) {
       console.error("setbc error:", err);
       reply("❌ Failed to set background. Please try again.");
+    }
+  }
+});
+
+// ── .setvbc – set video background (OWNERS ONLY) ───────────────────────────
+// Usage: reply to a video message with .setvbc
+// The bot trims the video to 5 seconds and converts it to an animated GIF
+// which will play behind the profile card.
+moon({
+  name: "setvbc",
+  category: "profile",
+  async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp, pushName }) {
+    try {
+      const senderNumber = sender.split('@')[0];
+
+      // ── Owner-only gate ───────────────────────────────────────────────────
+      if (!isOwner(senderNumber)) {
+        return reply("⛔ Only bot owners can set a video background.");
+      }
+
+      // ── Must reply to a video ─────────────────────────────────────────────
+      const contextInfo = m.message?.extendedTextMessage?.contextInfo;
+      const quotedMsg   = contextInfo?.quotedMessage;
+
+      if (!quotedMsg?.videoMessage) {
+        return reply("❌ Please *reply to a video* with `.setvbc` to set your video background.");
+      }
+
+      await reply("⏳ Processing your video background (trimming to 5s & converting to GIF)...");
+
+      // ── Download the quoted video ─────────────────────────────────────────
+      const videoBuffer = await downloadMediaMessage(
+        {
+          message: quotedMsg,
+          key: {
+            remoteJid: jid,
+            id: contextInfo.stanzaId,
+            participant: contextInfo.participant || sender
+          }
+        },
+        'buffer',
+        {},
+        {
+          logger: require('pino')({ level: 'silent' }),
+          reuploadRequest: sock.updateMediaMessage
+        }
+      );
+
+      if (!videoBuffer || !videoBuffer.length) {
+        return reply("❌ Failed to download the video. Please try again.");
+      }
+
+      // ── Convert to 5-second GIF ───────────────────────────────────────────
+      let gifBuffer;
+      try {
+        gifBuffer = await videoToGif(videoBuffer);
+      } catch (ffErr) {
+        console.error("ffmpeg error:", ffErr);
+        return reply("❌ Failed to process the video. Make sure it is a valid video file.");
+      }
+
+      // ── Save GIF as base64 on the user document ───────────────────────────
+      const user = await findOrCreateWhatsApp(sender, pushName);
+      if (!user) return reply("❌ User not found.");
+
+      user.videoBackground = gifBuffer.toString('base64');
+      await user.save();
+
+      reply("✅ Your *video background* has been set! It will play as a GIF when someone views your profile. 🎬");
+
+    } catch (err) {
+      console.error("setvbc error:", err);
+      reply("❌ Failed to set video background. Please try again.");
+    }
+  }
+});
+
+// ── .clearvbc – remove video background (OWNERS ONLY) ─────────────────────
+moon({
+  name: "clearvbc",
+  category: "profile",
+  async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp, pushName }) {
+    try {
+      const senderNumber = sender.split('@')[0];
+
+      if (!isOwner(senderNumber)) {
+        return reply("⛔ Only bot owners can use this command.");
+      }
+
+      const user = await findOrCreateWhatsApp(sender, pushName);
+      if (!user) return reply("❌ User not found.");
+
+      user.videoBackground = null;
+      await user.save();
+
+      reply("✅ Your video background has been removed.");
+    } catch (err) {
+      console.error("clearvbc error:", err);
+      reply("❌ Failed to clear video background.");
     }
   }
 });

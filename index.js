@@ -108,6 +108,20 @@ async function startBot() {
       await handleGroupEvents(sock, data);
     });
 
+    // ---------------- GROUP METADATA CACHE (speeds up moderation) ----------------
+    // Cache group metadata for up to 60 seconds to avoid a live API call on every message.
+    const grpMetaCache = new Map(); // jid → { meta, ts }
+    const GRP_META_TTL = 60000;     // 60 s
+
+    async function getCachedGroupMeta(jid) {
+      const now = Date.now();
+      const cached = grpMetaCache.get(jid);
+      if (cached && (now - cached.ts < GRP_META_TTL)) return cached.meta;
+      const meta = await sock.groupMetadata(jid);
+      grpMetaCache.set(jid, { meta, ts: now });
+      return meta;
+    }
+
     // ---------------- BAN SYNC ----------------
     setInterval(async () => {
       try {
@@ -178,17 +192,23 @@ async function startBot() {
                 m.message?.imageMessage?.caption ||
                 m.message?.videoMessage?.caption || '';
 
+              // Quick-exit: skip metadata fetch when both features are disabled
+              const alSettings = getAntilink(jid);
+              const amSettings = getAntimention(jid);
+              const needsCheck = alSettings?.enabled || amSettings?.enabled;
+
               // Check if sender is admin (admins are exempt)
               let senderIsAdmin = false;
-              try {
-                const grpMeta = await sock.groupMetadata(jid);
-                const part = grpMeta.participants.find(p => p.id === sender);
-                senderIsAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
-              } catch {}
+              if (needsCheck) {
+                try {
+                  const grpMeta = await getCachedGroupMeta(jid);
+                  const part = grpMeta.participants.find(p => p.id === sender);
+                  senderIsAdmin = part && (part.admin === 'admin' || part.admin === 'superadmin');
+                } catch {}
+              }
 
-              if (!senderIsAdmin) {
+              if (!senderIsAdmin && needsCheck) {
                 // ── ANTILINK ─────────────────────────────────────────────────
-                const alSettings = getAntilink(jid);
                 if (alSettings?.enabled) {
                   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|chat\.whatsapp\.com\/[^\s]+)/i;
                   if (urlRegex.test(msgBody)) {
@@ -233,10 +253,22 @@ async function startBot() {
                 }
 
                 // ── ANTIMENTION ───────────────────────────────────────────────
-                const amSettings = getAntimention(jid);
                 if (amSettings?.enabled) {
-                  const mentionedJids = m.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-                  const hasMention = mentionedJids.length > 0;
+                  // Collect mentions from ALL possible message types
+                  const mentionedJids =
+                    m.message?.extendedTextMessage?.contextInfo?.mentionedJid ||
+                    m.message?.conversation && [] ||
+                    m.message?.imageMessage?.contextInfo?.mentionedJid ||
+                    m.message?.videoMessage?.contextInfo?.mentionedJid ||
+                    m.message?.buttonsMessage?.contextInfo?.mentionedJid ||
+                    m.message?.listMessage?.contextInfo?.mentionedJid ||
+                    [];
+
+                  // Also detect @mentions written as plain text (e.g. @1234567890)
+                  const textMentionRegex = /@\d{5,15}/;
+                  const hasTextMention = textMentionRegex.test(msgBody);
+
+                  const hasMention = mentionedJids.length > 0 || hasTextMention;
                   if (hasMention) {
                     const action = amSettings.action || 'warn';
                     if (action === 'delete') {
