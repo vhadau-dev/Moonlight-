@@ -21,12 +21,13 @@ const OwnersMeme = require('./handler/OwnersMeme');
 const { startAutoSpawn } = require('./commands/cards/spawn');
 const { spawnCard } = require('./commands/cards/spawn');
 
+const config = require('./config');
 const {
   BOT_NAME,
   PREFIX,
   SESSION_FOLDER,
   OWNER_NUMBERS
-} = require('./config');
+} = config;
 
 // ✅ GROUP SETTINGS (UPDATED)
 const { getGroup, handleGroupEvents, getAntilink, getAntimention, updateAntilink, updateAntimention } = require('./models/GroupSettings');

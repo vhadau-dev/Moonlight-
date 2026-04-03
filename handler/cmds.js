@@ -116,11 +116,7 @@ https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX`
       // ▶️ RUN COMMAND
       const result = await originalExecute(sock, jid, sender, args, m, context);
 
-      // 📊 PERFORMANCE MONITORING
-      const duration = Date.now() - startTime;
-      if (duration > 500) {
-        console.log(`[PERF] Slow command: ${cmd.name} took ${duration}ms`);
-      }
+      // 📊 PERFORMANCE MONITORING REMOVED
 
       return result;
 
