@@ -44,8 +44,16 @@ moon({
         if (!cardId) return reply("❌ Provide a Card ID.");
         const card = await Card.findOne({ cardId });
         if (!card) return reply("❌ Card not found.");
-        let msg = `🃏 *CARD DETAILS* 🃏\n\n🆔 ID: ${card.cardId}\n🎈 Name: ${card.name}\n🎐 Tier: ${card.tier}\n⚔️ ATK: ${card.atk}\n🛡️ DEF: ${card.def}\n🔯 Level: ${card.level}\n👤 Owner: ${card.owner || "None"}`;
-        return sock.sendMessage(jid, { image: { url: card.image }, caption: msg }, { quoted: m });
+        let msg = `🃏 *CARD DETAILS* 🃏\n\n🆔 ID: ${card.cardId}\n🎈 Name: ${card.name}\n🎐 Tier: ${card.tier}\n⚔️ ATK: ${card.atk}\n🛡️ DEF: ${card.def}\n🔯 Level: ${card.level}\n👤 Owner: ${card.owner ? '@' + card.owner.split('@')[0] : "None"}`;
+        return sock.sendMessage(
+          jid, 
+          { 
+            image: { url: card.image }, 
+            caption: msg,
+            mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
+          }, 
+          { quoted: m }
+        );
       }
 
       // For other commands, we provide a consistent interactive response

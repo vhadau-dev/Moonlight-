@@ -70,9 +70,17 @@ moon({
           `⚔️ ATK: ${card.atk}\n` +
           `🛡️ DEF: ${card.def}\n` +
           `🔯 Level: ${card.level}\n` +
-          `👤 Owner: ${card.owner || "None"}`;
+          `👤 Owner: ${card.owner ? '@' + card.owner.split('@')[0] : "None"}`;
 
-        return sock.sendMessage(jid, { image: { url: card.image }, caption: msg }, { quoted: m });
+        return sock.sendMessage(
+          jid,
+          { 
+            image: { url: card.image }, 
+            caption: msg,
+            mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
+          },
+          { quoted: m }
+        );
       }
 
       // DEFAULT

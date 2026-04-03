@@ -38,18 +38,22 @@ module.exports = async (sock, m) => {
 
     const isOwnerSender = ownerNumbers.includes(sender.split('@')[0]);
 
-    // ---------------- STICKERS ----------------
+    // ---------------- STICKERS (AUTO-REPLY WHEN TAGGED) ----------------
     if (isOwnerMentioned && config.OWNER_STICKERS?.length) {
       const url = random(config.OWNER_STICKERS);
 
-      const res = await require('axios').get(url, { responseType: 'arraybuffer' });
-      const buffer = Buffer.from(res.data);
+      try {
+        const res = await require('axios').get(url, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(res.data);
 
-      await sock.sendMessage(jid, {
-        sticker: buffer
-      }, { quoted: m });
+        await sock.sendMessage(jid, {
+          sticker: buffer
+        }, { quoted: m });
 
-      return true;
+        return true;
+      } catch (upErr) {
+        console.error("Failed to send owner sticker:", upErr);
+      }
     }
 
     // ---------------- OWNER TALKING MEME ----------------

@@ -38,7 +38,7 @@ moon({
         { 
           image: cardBuffer, 
           caption: msg,
-          mentions: card.owner ? [card.owner + '@s.whatsapp.net'] : []
+          mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
         },
         { quoted: m }
       );

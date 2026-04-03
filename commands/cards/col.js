@@ -86,11 +86,15 @@ moon({
           `⚔️ ATK: ${card.atk ?? 0}\n` +
           `🛡️ DEF: ${card.def ?? 0}\n` +
           `🔯 Level: ${card.level ?? 1}\n` +
-          `👤 Owner: ${card.owner || "None"}`;
+          `👤 Owner: ${card.owner ? '@' + card.owner.split('@')[0] : "None"}`;
 
         return sock.sendMessage(
           jid,
-          { image: { url: card.image }, caption: msg },
+          { 
+            image: { url: card.image }, 
+            caption: msg,
+            mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
+          },
           { quoted: m }
         );
       }
