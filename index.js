@@ -18,8 +18,8 @@ const { findOrCreateWhatsApp } = require('./database/users');
 
 // ✅ HANDLERS
 const OwnersMeme = require('./handler/OwnersMeme');
-const { startCardSystem } = require('./handler/CardsSystem');
-const { spawnCard } = require('./handler/CardsSystem');
+const { startAutoSpawn } = require('./commands/cards/spawn');
+const { spawnCard } = require('./commands/cards/spawn');
 
 const {
   BOT_NAME,
@@ -89,12 +89,18 @@ async function startBot() {
           }
         }
 
-        // ✅ START CARD SYSTEM
-        startCardSystem(sock);
+        // ✅ START CARD SYSTEM (35m Auto-Spawn)
+        startAutoSpawn(sock);
 
-        // ✅ FORCE SPAWN ON START
-        const groupId = "120363400061711508@g.us";
-        await spawnCard(sock, groupId, true);
+        // ✅ FORCE SPAWN ON START (Only in enabled groups)
+        (async () => {
+          const GroupSpawn = require('./models/GroupSpawn');
+          const enabledGroups = await GroupSpawn.find({ enabled: true });
+          let spawnedCard = null;
+          for (const group of enabledGroups) {
+            spawnedCard = await spawnCard(sock, group.jid, spawnedCard);
+          }
+        })();
       }
 
       if (connection === 'close') {
