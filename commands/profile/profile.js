@@ -7,6 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const os = require('os');
+const axios = require('axios');
+const FormData = require('form-data');
 
 // ── Helper: check if a number is an owner ──────────────────────────────────
 function isOwner(number) {
@@ -34,6 +36,24 @@ async function videoToGif(videoBuffer) {
     try { fs.unlinkSync(inFile);  } catch {}
     try { fs.unlinkSync(outFile); } catch {}
   }
+}
+
+// ── Helper: upload buffer to Catbox.moe ────────────────────────────────────
+async function uploadToCatbox(buffer, extension = 'gif') {
+  const form = new FormData();
+  form.append('reqtype', 'fileupload');
+  form.append('userhash', '');
+  form.append('fileToUpload', buffer, {
+    filename: `vbg.${extension}`,
+    contentType: `image/${extension}`
+  });
+
+  const response = await axios.post('https://catbox.moe/user/api.php', form, {
+    headers: form.getHeaders(),
+    timeout: 60000
+  });
+
+  return (response.data || '').trim();
 }
 
 // ── .profile / .p ──────────────────────────────────────────────────────────
@@ -73,21 +93,11 @@ moon({
       const bank   = user.bank   || 0;
 
       // ── Decide background ─────────────────────────────────────────────────
-      // Owners may have a videoBackground (stored as base64 GIF data URI or a
-      // catbox URL ending in .gif).  Regular users only get a static image.
       let backgroundForCard = user.backgroundImage || null;
-      let videoGifBuffer    = null;
+      let videoGifUrl       = null;
 
       if (isOwner(targetNumber) && user.videoBackground) {
-        // videoBackground is stored as a base64 string of the GIF
-        try {
-          videoGifBuffer = Buffer.from(user.videoBackground, 'base64');
-          // We still pass a static background to the canvas (first frame feel)
-          // The GIF is sent separately as the message video/gif
-          backgroundForCard = user.backgroundImage || null;
-        } catch {
-          videoGifBuffer = null;
-        }
+        videoGifUrl = user.videoBackground;
       }
 
       // Generate stylized profile image (static canvas card)
@@ -135,12 +145,12 @@ ${user.bio || 'No bio set'}
       `.trim();
 
       // ── Send profile card ─────────────────────────────────────────────────
-      if (videoGifBuffer) {
+      if (videoGifUrl) {
         // Owner with video background: send GIF (plays in chat) + profile card
         await sock.sendMessage(
           jid,
           {
-            video:    videoGifBuffer,
+            video:    { url: videoGifUrl },
             gifPlayback: true,
             caption:  '🎬 *Profile Background*',
             mentions: [target]
@@ -204,9 +214,6 @@ moon({
 });
 
 // ── .setvbc – set video background (OWNERS ONLY) ───────────────────────────
-// Usage: reply to a video message with .setvbc
-// The bot trims the video to 5 seconds and converts it to an animated GIF
-// which will play behind the profile card.
 moon({
   name: "setvbc",
   category: "profile",
@@ -260,11 +267,20 @@ moon({
         return reply("❌ Failed to process the video. Make sure it is a valid video file.");
       }
 
-      // ── Save GIF as base64 on the user document ───────────────────────────
+      // ── Upload to Catbox ──────────────────────────────────────────────────
+      let catboxUrl;
+      try {
+        catboxUrl = await uploadToCatbox(gifBuffer);
+      } catch (upErr) {
+        console.error("Catbox upload error:", upErr);
+        return reply("❌ Failed to upload video background to server.");
+      }
+
+      // ── Save URL on the user document ─────────────────────────────────────
       const user = await findOrCreateWhatsApp(sender, pushName);
       if (!user) return reply("❌ User not found.");
 
-      user.videoBackground = gifBuffer.toString('base64');
+      user.videoBackground = catboxUrl;
       await user.save();
 
       reply("✅ Your *video background* has been set! It will play as a GIF when someone views your profile. 🎬");

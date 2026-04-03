@@ -26,6 +26,7 @@ const userSchema = new mongoose.Schema({
   // ---------------- PROFILE SYSTEM ----------------
   profileImage: { type: String, default: null },
   backgroundImage: { type: String, default: null },
+  videoBackground: { type: String, default: null },
   age: { type: Number, default: 0 },
   bio: { type: String, default: '.' },
   role: { type: String, default: 'User' },
