@@ -3,107 +3,51 @@ const User = require('../../models/User');
 
 moon({
   name: "col",
-  aliases: ["search", "inv", "inventory"],
+  aliases: ["collection"],
   category: "cards",
-  description: "View and manage your card collection.",
+  description: "Show a user's full collection of cards",
+  usage: ".col [@user] [page]",
   cooldown: 5,
   async execute(sock, jid, sender, args, m, { reply }) {
     try {
-      const senderNumber = sender.split('@')[0];
+      const contextInfo = m.message?.extendedTextMessage?.contextInfo;
+      const mentionedJid = contextInfo?.mentionedJid?.[0] || contextInfo?.participant || sender;
+      const targetNumber = mentionedJid.split('@')[0];
+      
+      const page = parseInt(args.find(arg => !arg.includes('@'))) || 1;
+      const limit = 15;
+      const skip = (page - 1) * limit;
 
-      let user = await User.findOne({ userId: senderNumber });
-      if (!user) {
-        user = await User.create({
-          userId: senderNumber,
-          cards: [],
-          balance: 0
-        });
+      const user = await User.findOne({ whatsappNumber: mentionedJid });
+      if (!user || !user.cards || user.cards.length === 0) {
+        return reply(`📭 @${targetNumber}'s collection is empty.`, { mentions: [mentionedJid] });
       }
 
-      const sub = args[0]?.toLowerCase();
+      const totalCards = user.cards.length;
+      const totalPages = Math.ceil(totalCards / limit);
 
-      // HELP
-      if (sub === "help") {
-        return reply(
-          "📖 *COL HELP*\n\n" +
-          ".col collection\n" +
-          ".col detail <cardId>\n" +
-          ".col claim <cardId>"
-        );
+      if (page > totalPages) {
+        return reply(`❌ Invalid page. There are only ${totalPages} pages.`);
       }
 
-      // COLLECTION VIEW
-      if (!sub || ["collection", "col", "inv", "inventory"].includes(sub)) {
-        const userCards = await Card.find({ owner: senderNumber });
+      const cardsToShow = user.cards.slice(skip, skip + limit);
 
-        if (userCards.length === 0) {
-          return reply("📭 Your collection is empty! Claim some cards first.");
-        }
+      let msg = `🎴 *COLLECTION: @${targetNumber}* 🎴\n`;
+      msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+      msg += `Page: ${page}/${totalPages} | Total: ${totalCards}\n\n`;
 
-        let msg = "🎴 *YOUR CARD COLLECTION* 🎴\n\n";
-        userCards.forEach((c, i) => {
-          msg += `${i + 1}. [${c.tier}] ${c.name} (ID: ${c.cardId})\n`;
-        });
+      cardsToShow.forEach((c, i) => {
+        msg += `${skip + i + 1}. [${c.tier}] *${c.name}* (ID: \`${c.cardId}\`)\n`;
+      });
 
-        return reply(msg);
-      }
+      msg += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+      msg += `Use \`.col @user [page]\` to see more.`;
 
-      // CLAIM
-      if (sub === "claim") {
-        const cardId = args[1]?.toUpperCase();
-        if (!cardId) {
-          return reply("❌ Provide a Card ID.\nExample: .col claim ABC123");
-        }
-
-        const card = await Card.findOne({ cardId, owner: null });
-        if (!card) {
-          return reply("❌ Card not found or already claimed!");
-        }
-
-        card.owner = senderNumber;
-        await card.save();
-
-        return reply(`✅ Successfully claimed: *${card.name}* [${card.tier}]!`);
-      }
-
-      // DETAIL
-      if (sub === "detail") {
-        const cardId = args[1]?.toUpperCase();
-        if (!cardId) {
-          return reply("❌ Provide a Card ID.\nExample: .col detail ABC123");
-        }
-
-        const card = await Card.findOne({ cardId });
-        if (!card) {
-          return reply("❌ Card not found.");
-        }
-
-        const msg =
-          `🃏 *CARD DETAILS* 🃏\n\n` +
-          `🆔 ID: ${card.cardId}\n` +
-          `🎈 Name: ${card.name}\n` +
-          `🎐 Tier: ${card.tier}\n` +
-          `⚔️ ATK: ${card.atk ?? 0}\n` +
-          `🛡️ DEF: ${card.def ?? 0}\n` +
-          `🔯 Level: ${card.level ?? 1}\n` +
-          `👤 Owner: ${card.owner ? '@' + card.owner.split('@')[0] : "None"}`;
-
-        return sock.sendMessage(
-          jid,
-          { 
-            image: { url: card.image }, 
-            caption: msg,
-            mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
-          },
-          { quoted: m }
-        );
-      }
-
-      return reply("🛠️ Use .col help to see commands.");
+      return reply(msg, { mentions: [mentionedJid] });
 
     } catch (err) {
       console.error("col error:", err);
-      reply("❌ An error occurred with the col command.");
+      reply("❌ Failed to fetch collection.");
     }
   }
 });

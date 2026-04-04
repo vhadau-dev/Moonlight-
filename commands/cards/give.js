@@ -4,58 +4,69 @@ const User = require('../../models/User');
 moon({
   name: "give",
   category: "cards",
+  description: "Give a card to another user",
+  usage: ".give @user <id>",
+  cooldown: 5,
   async execute(sock, jid, sender, args, m, { reply }) {
     try {
-      const senderNumber = sender.split('@')[0];
-
-      if (args[0] === "help") {
-        return reply(
-          "📖 *GIVE HELP*\n\n" +
-          "Usage:\n" +
-          ".give @user <cardId>\n"
-        );
-      }
-
-      // Get target user (mention or reply)
       const contextInfo = m.message?.extendedTextMessage?.contextInfo;
-      const targetJid = contextInfo?.mentionedJid?.[0] || contextInfo?.participant;
-
-      if (!targetJid) {
-        return reply("❌ Tag or reply to a user to give a card.");
-      }
-
-      const targetNumber = targetJid.split('@')[0];
+      const mentionedJid = contextInfo?.mentionedJid?.[0] || contextInfo?.participant;
       
-      // If replying, cardId is in args[0]. If mentioning, cardId is in args[1].
-      const isReply = contextInfo?.participant && !contextInfo?.mentionedJid?.[0];
-      const cardId = (isReply ? args[0] : (args[1] || args[0]))?.toUpperCase();
+      if (!mentionedJid || mentionedJid === sender) {
+        return reply("❌ Tag or reply to a user to give a card! Example: .give @user <id>");
+      }
 
+      const cardId = args.find(arg => !arg.includes('@'))?.toUpperCase();
       if (!cardId) {
-        return reply("❌ Provide a Card ID.\nExample: .give @user ABC123");
+        return reply("❌ Provide a Card ID to give.\nExample: .give @user ABC123");
       }
 
-      // Find the card owned by sender
-      const card = await Card.findOne({
-        cardId,
-        owner: senderNumber
-      });
+      const senderNumber = sender.split('@')[0];
+      const targetNumber = mentionedJid.split('@')[0];
 
-      if (!card) {
-        return reply("❌ You don't own this card.");
+      const user = await User.findOne({ whatsappNumber: sender });
+      const targetUser = await User.findOne({ whatsappNumber: mentionedJid });
+
+      if (!user || !user.cards || user.cards.length === 0) {
+        return reply("📭 Your collection is empty.");
       }
 
-      // Transfer ownership
-      card.owner = targetNumber;
-      card.isEquipped = false; // unequip on transfer
-      await card.save();
+      const cardIndex = user.cards.findIndex(c => c.cardId === cardId);
+      if (cardIndex === -1) {
+        return reply(`❌ You don't own card ID: \`${cardId}\``);
+      }
 
-      return reply(
-        `✅ Card *${card.name}* has been given to @${targetNumber}`
-      );
+      const cardToGive = user.cards[cardIndex];
+
+      // Transfer logic
+      if (targetUser) {
+        targetUser.cards.push(cardToGive);
+        await targetUser.save();
+      } else {
+        // Create target user if they don't exist
+        await User.create({
+          whatsappNumber: mentionedJid,
+          username: targetNumber,
+          cards: [cardToGive]
+        });
+      }
+
+      user.cards.splice(cardIndex, 1);
+      await user.save();
+
+      // Update card owner in Card collection
+      const cardData = await Card.findOne({ cardId });
+      if (cardData) {
+        cardData.owner = targetNumber;
+        cardData.isEquipped = false;
+        await cardData.save();
+      }
+
+      return reply(`✅ Successfully gave *${cardToGive.name}* to @${targetNumber}!`, { mentions: [mentionedJid] });
 
     } catch (err) {
       console.error("give error:", err);
-      reply("❌ An error occurred with the give command.");
+      reply("❌ Failed to give card.");
     }
   }
 });
