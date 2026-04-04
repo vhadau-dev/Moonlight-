@@ -6,7 +6,7 @@ const config = require('../config');
 const commands = new Map();
 const aliases = new Map();
 
-// ✅ COOLDOWN STORAGE
+// ✅ COOLDOWNS
 const cooldowns = new Map();
 
 // ---------------- REGISTER FUNCTION ----------------
@@ -37,7 +37,7 @@ function moon(cmd) {
   }
 }
 
-// 🌍 MAKE GLOBAL (VERY IMPORTANT)
+// 🌍 MAKE GLOBAL
 global.moon = moon;
 
 // ---------------- LOAD COMMANDS ----------------
@@ -51,9 +51,7 @@ function loadCommands(dir = path.join(__dirname, '../commands')) {
       loadCommands(fullPath);
     } else if (file.endsWith('.js')) {
       try {
-        // ✅ Use require for command registration
         require(fullPath);
-        // console.log(`✅ Loaded: ${file}`);
       } catch (err) {
         console.error(`❌ Failed to load ${file}:`, err);
       }
@@ -68,6 +66,14 @@ loadCommands();
 function isAllowedGroup(jid) {
   if (!jid.endsWith('@g.us')) return true;
 
+  // Prioritize environment variable if set
+  const envAllowed = process.env.GAMBLING_JID;
+  if (envAllowed) {
+    const allowedList = envAllowed.split(',').map(id => id.trim());
+    return allowedList.includes(jid);
+  }
+
+  // Fallback to config
   const allowed = config.ECONOMY_GROUPS || [];
   return allowed.includes(jid);
 }
@@ -77,26 +83,22 @@ for (const cmd of commands.values()) {
   const originalExecute = cmd.execute;
 
   cmd.execute = async function (sock, jid, sender, args, m, context) {
-    const startTime = Date.now();
-
     try {
       // 🔒 LOCK GAMBLING CMDS
       if (cmd.category === 'gambling') {
         if (!isAllowedGroup(jid)) {
           return context.reply(
-`❌ Sorry this command is locked you can only use it on the following groups 
-
-*𝚳𝚯𝚯𝚴𝐋𝚰𝐆𝚮𝚻 casino ( l )*
-https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX
-
-*𝚳𝚯𝚯𝚴𝐋𝚰𝐆𝚮𝚻 casino ( ll)*
-https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX`
+            `❌ Sorry this command is locked you can only use it on the following groups \n\n` +
+            `*𝚳𝚯𝚯𝚴𝐋𝚰𝐆𝚮𝚻 casino ( l )*\n` +
+            `https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX\n\n` +
+            `*𝚳𝚯𝚯𝚴𝐋𝚰𝐆𝚮𝚻 casino ( ll)*\n` +
+            `https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX`
           );
         }
       }
 
-      // ⏳ GLOBAL COOLDOWN SYSTEM
-      const cooldownTime = cmd.cooldown || 3; // Default 3 seconds
+      // ⏳ COOLDOWN SYSTEM
+      const cooldownTime = cmd.cooldown || 3;
       const cooldownKey = `${sender}_${cmd.name}`;
       const now = Date.now();
 
@@ -110,15 +112,10 @@ https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX`
 
       // Set new cooldown
       cooldowns.set(cooldownKey, now + (cooldownTime * 1000));
-      // Cleanup cooldown entry after it expires
       setTimeout(() => cooldowns.delete(cooldownKey), cooldownTime * 1000);
 
       // ▶️ RUN COMMAND
-      const result = await originalExecute(sock, jid, sender, args, m, context);
-
-      // 📊 PERFORMANCE MONITORING REMOVED
-
-      return result;
+      return await originalExecute(sock, jid, sender, args, m, context);
 
     } catch (err) {
       console.error(`❌ Error in command ${cmd.name}:`, err);

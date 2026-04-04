@@ -1,39 +1,55 @@
-// database/users.js
-const User = require('../models/User'); // points to your current User model
+const User = require('../models/User');
 
 // ✅ In-memory cache for users
 const userCache = new Map();
 const CACHE_TTL = 60000; // 60 seconds
 
 /**
- * Finds a user by WhatsApp ID (or Discord ID) or creates them if they don't exist
- * @param {string} whatsappNumber - the WhatsApp sender ID
- * @param {string} username - optional username
- * @returns {Promise<User>}
+ * Finds a user by WhatsApp ID or Discord ID or creates them if they don't exist.
+ * @param {string} id - The ID of the user (WhatsApp number or Discord ID).
+ * @param {string} platform - The platform ('whatsapp' or 'discord').
+ * @param {string} username - Optional username.
+ * @returns {Promise<Object>} - The user document.
  */
-async function findOrCreateWhatsApp(whatsappNumber, username = 'Unknown') {
+async function findOrCreateUser(id, platform = 'whatsapp', username = 'Unknown') {
+  const cacheKey = `${platform}:${id}`;
+  
   // ✅ Check cache first
-  if (userCache.has(whatsappNumber)) {
-    return userCache.get(whatsappNumber);
+  if (userCache.has(cacheKey)) {
+    return userCache.get(cacheKey);
   }
 
-  let user = await User.findOne({ whatsappNumber });
+  let query = {};
+  if (platform === 'whatsapp') {
+    query = { whatsappNumber: id };
+  } else if (platform === 'discord') {
+    query = { discordId: id };
+  }
+
+  let user = await User.findOne(query);
   if (!user) {
     user = await User.create({
-      whatsappNumber,
+      [platform === 'whatsapp' ? 'whatsappNumber' : 'discordId']: id,
       username
     });
   }
 
   // ✅ Store in cache
-  userCache.set(whatsappNumber, user);
+  userCache.set(cacheKey, user);
 
-  // ✅ Auto-delete after TTL to prevent memory leaks
+  // ✅ Auto-delete after TTL
   setTimeout(() => {
-    userCache.delete(whatsappNumber);
+    userCache.delete(cacheKey);
   }, CACHE_TTL);
 
   return user;
 }
 
-module.exports = { findOrCreateWhatsApp, userCache };
+/**
+ * Legacy wrapper for findOrCreateUser (WhatsApp only).
+ */
+async function findOrCreateWhatsApp(whatsappNumber, username = 'Unknown') {
+  return await findOrCreateUser(whatsappNumber, 'whatsapp', username);
+}
+
+module.exports = { findOrCreateUser, findOrCreateWhatsApp, userCache };
