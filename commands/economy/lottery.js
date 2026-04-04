@@ -4,11 +4,24 @@ const User = require('../../models/User');
 moon({
   name: "lottery",
   category: "economy",
-  description: "Join or manage lottery",
-  usage: ".lottery | .lottery draw",
+  description: "Join the lottery to win big prizes!",
+  usage: ".lottery",
 
-  async execute(sock, jid, sender, args, m, { reply, pushName }) {
+  async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp, pushName }) {
     try {
+      const senderNumber = sender.split('@')[0];
+      const user = await findOrCreateWhatsApp(sender, pushName);
+
+      // =========================
+      // 🎯 REMOVED SUBCOMMAND FINE
+      // =========================
+      if (args[0]?.toLowerCase() === "draw") {
+        const fineAmount = 100000;
+        user.balance = Math.max(0, (user.balance || 0) - fineAmount);
+        await user.save();
+        
+        return reply(`❌ Sorry baka, the \`.lottery draw\` command has been removed. You have been fined *${fineAmount.toLocaleString()}* coins for trying to use it!`);
+      }
 
       let lottery = await Lottery.findOne({ active: true });
 
@@ -22,21 +35,8 @@ moon({
       const userId = sender;
 
       // =========================
-      // 🎯 MANUAL DRAW
-      // =========================
-      if (args[0]?.toLowerCase() === "draw") {
-
-        if (!lottery.participants || lottery.participants.length < 2) {
-          return reply("❌ Not enough participants to draw.");
-        }
-
-        return await drawLottery();
-      }
-
-      // =========================
       // 🎟️ JOIN LOGIC
       // =========================
-
       const existing = lottery.participants.find(p => p.userId === userId);
 
       if (existing) {
@@ -68,14 +68,17 @@ moon({
       // 🎯 DRAW FUNCTION
       // =========================
       async function drawLottery() {
-
         const valid = lottery.participants.filter(p => p && p.userId);
 
-        if (valid.length === 0) return reply("❌ No valid participants.");
+        if (valid.length < 2) {
+          // Reset if not enough valid participants
+          lottery.participants = [];
+          await lottery.save();
+          return reply("❌ Not enough valid participants to draw. Lottery reset.");
+        }
 
         // Shuffle
         const shuffled = valid.sort(() => Math.random() - 0.5);
-
         const winners = shuffled.slice(0, 2);
 
         const firstPrize = 500000;
@@ -83,27 +86,23 @@ moon({
 
         for (let i = 0; i < winners.length; i++) {
           const w = winners[i];
+          const winnerUser = await User.findOne({ userId: w.userId.split('@')[0] });
 
-          const user = await User.findOne({ whatsappNumber: w.userId });
-
-          if (user) {
+          if (winnerUser) {
             const prize = i === 0 ? firstPrize : secondPrize;
-            user.balance += prize;
-            await user.save();
+            winnerUser.balance = (winnerUser.balance || 0) + prize;
+            await winnerUser.save();
           }
         }
 
-        // Announce
+        // Announce with mentions
+        const winner1 = winners[0].userId;
+        const winner2 = winners[1].userId;
+
         await sock.sendMessage(jid, {
-          text: `
-🏆 *Lottery Results*
-
-🥇 1st Winner: ${winners[0].userId.split('@')[0]} → ${firstPrize.toLocaleString()}
-🥈 2nd Winner: ${winners[1].userId.split('@')[0]} → ${secondPrize.toLocaleString()}
-
-🎉 Congratulations!
-          `.trim()
-        });
+          text: `🏆 *Lottery Results* 🏆\n\n🥇 1st Winner: @${winner1.split('@')[0]} → *${firstPrize.toLocaleString()}* coins\n🥈 2nd Winner: @${winner2.split('@')[0]} → *${secondPrize.toLocaleString()}* coins\n\n🎉 Congratulations to the winners!`,
+          mentions: [winner1, winner2]
+        }, { quoted: m });
 
         // Reset lottery
         lottery.participants = [];

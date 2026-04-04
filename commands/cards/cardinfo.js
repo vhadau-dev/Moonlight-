@@ -20,6 +20,16 @@ moon({
         return reply("❌ Card not found.");
       }
 
+      // Fetch owner name if exists
+      let ownerName = "None";
+      let ownerJid = null;
+      
+      if (card.owner) {
+        const ownerUser = await User.findOne({ whatsappNumber: card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net' });
+        ownerName = ownerUser?.username || card.owner.split('@')[0];
+        ownerJid = card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net';
+      }
+
       // Generate the stylized card image
       const cardBuffer = await generateCardImage(card);
 
@@ -31,14 +41,14 @@ moon({
         `⚔️ ATK: ${card.atk?.toLocaleString() ?? 0}\n` +
         `🛡️ DEF: ${card.def?.toLocaleString() ?? 0}\n` +
         `🔯 Level: ${card.level ?? 1}\n` +
-        `👤 Owner: ${card.owner ? '@' + card.owner.split('@')[0] : "None"}`;
+        `👤 Owner: ${ownerJid ? '@' + ownerJid.split('@')[0] + ' (' + ownerName + ')' : "None"}`;
 
       return sock.sendMessage(
         jid,
         { 
           image: cardBuffer, 
           caption: msg,
-          mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
+          mentions: ownerJid ? [ownerJid] : []
         },
         { quoted: m }
       );

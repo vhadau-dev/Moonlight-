@@ -7,18 +7,10 @@ moon({
   category: "cards",
   description: "View and manage your card collection.",
   cooldown: 5,
-  async execute(sock, jid, sender, args, m, { reply }) {
+  async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp, pushName }) {
     try {
       const senderNumber = sender.split('@')[0];
-
-      let user = await User.findOne({ userId: senderNumber });
-      if (!user) {
-        user = await User.create({
-          userId: senderNumber,
-          cards: [],
-          balance: 0
-        });
-      }
+      const user = await findOrCreateWhatsApp(sender, pushName);
 
       const sub = args[0]?.toLowerCase();
 
@@ -78,6 +70,16 @@ moon({
           return reply("❌ Card not found.");
         }
 
+        // Fetch owner name if exists
+        let ownerName = "None";
+        let ownerJid = null;
+        
+        if (card.owner) {
+          const ownerUser = await User.findOne({ whatsappNumber: card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net' });
+          ownerName = ownerUser?.username || card.owner.split('@')[0];
+          ownerJid = card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net';
+        }
+
         const msg =
           `🃏 *CARD DETAILS* 🃏\n\n` +
           `🆔 ID: ${card.cardId}\n` +
@@ -86,14 +88,14 @@ moon({
           `⚔️ ATK: ${card.atk ?? 0}\n` +
           `🛡️ DEF: ${card.def ?? 0}\n` +
           `🔯 Level: ${card.level ?? 1}\n` +
-          `👤 Owner: ${card.owner ? '@' + card.owner.split('@')[0] : "None"}`;
+          `👤 Owner: ${ownerJid ? '@' + ownerJid.split('@')[0] + ' (' + ownerName + ')' : "None"}`;
 
         return sock.sendMessage(
           jid,
           { 
             image: { url: card.image }, 
             caption: msg,
-            mentions: card.owner ? [card.owner.includes('@') ? card.owner : card.owner + '@s.whatsapp.net'] : []
+            mentions: ownerJid ? [ownerJid] : []
           },
           { quoted: m }
         );
