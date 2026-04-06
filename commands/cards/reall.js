@@ -6,15 +6,11 @@ moon({
   category: 'cards',
   description: 'Update all existing cards to the new design (Owner/Card Creator only)',
   usage: '.reall',
-  async execute(sock, jid, sender, args, m, { reply }) {
+  async execute(sock, jid, sender, args, m, { reply, isCDC }) {
     try {
-      // ── 1. Permission Check ───────────────────────────────────────────────
-      const senderNumber = sender.split('@')[0];
-      const isOwner = config.OWNER_NUMBERS?.includes(senderNumber);
-      const isCreator = config.CARDS_CREATERS?.includes(senderNumber);
-
-      if (!isOwner && !isCreator) {
-        return reply("⛔ You don't have permission for that.");
+      // 🛡️ CDC CHECK
+      if (!(await isCDC())) {
+        return reply("⛔ You don't have permission for that. Only Card Creators can use this.");
       }
 
       // ── 2. Fetch all cards ────────────────────────────────────────────────

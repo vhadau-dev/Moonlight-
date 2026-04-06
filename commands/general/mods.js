@@ -1,58 +1,70 @@
+const User = require('../../models/User');
 const config = require('../../config');
 
 moon({
   name: 'mods',
   category: 'general',
-  description: 'Show Moonlight Haven guardians',
+  description: 'Show Moonlight Haven owners and moderators',
 
   async execute(sock, jid, sender, args, m, { reply }) {
     try {
+      // Fetch all owners and mods from database
+      const staff = await User.find({ 
+        role: { $in: ['Owner', 'True Owner', 'Mod'] } 
+      });
 
-      if (!config.GUARDS) {
-        return reply("❌ No guardians configured in config.js");
+      if (!staff.length) {
+        return reply("❌ No staff members found in the database.");
       }
 
-      const guardNumbers = config.GUARDS
-        .split(',')
-        .map(n => n.trim())
-        .filter(Boolean);
+      const owners = staff.filter(u => u.role === 'Owner' || u.role === 'True Owner');
+      const mods = staff.filter(u => u.role === 'Mod');
 
-      const mentions = guardNumbers.map(n => n + '@s.whatsapp.net');
+      let mentions = [];
+      let ownersText = owners.map(u => {
+        const jidUser = u.whatsappNumber || (u.userId + '@s.whatsapp.net');
+        mentions.push(jidUser);
+        return `✦ @${u.userId} (${u.username})`;
+      }).join('\n');
 
-      const guards = guardNumbers
-        .map(n => `✦ @${n}`)
-        .join('\n');
+      let modsText = mods.map(u => {
+        const jidUser = u.whatsappNumber || (u.userId + '@s.whatsapp.net');
+        mentions.push(jidUser);
+        return `✦ @${u.userId} (${u.username})`;
+      }).join('\n');
 
       const caption = `
 *「 🌙 𝓜𝓸𝓸𝓷𝓵𝓲𝓰𝓱𝓽 𝓗𝓪𝓿𝓮𝓷 」*
 
-⳹─❖「 👑 𝗚𝘂𝗮𝗿𝗱𝗶𝗮𝗻𝘀 」❖─⳹
-${guards}
+⳹─❖「 👑 𝗢𝘄𝗻𝗲𝗿𝘀 」❖─⳹
+${ownersText || 'None'}
+
+⳹─❖「 🛡️ 𝗠𝗼𝗱𝗲𝗿𝗮𝘁𝗼𝗿𝘀 」❖─⳹
+${modsText || 'None'}
 
 ⳹─❖────「⚔️ 」────❖─⳹
 
 > ⚠️ Use this command only when necessary.  
-> Repeated usage may lead to restrictions.Don't tell us you where just testing
-> Or where will test the .kick cmd on you
+> Repeated usage may lead to restrictions. Don't tell us you were just testing
+> Or we will test the .kick cmd on you
       `.trim();
 
-      // ✅ Reply to the caller message (this prevents "broadcast/spawn feel")
       if (config.MOONLIGHT_IMAGE) {
         await sock.sendMessage(jid, {
           image: { url: config.MOONLIGHT_IMAGE },
           caption,
           mentions
-        }, { quoted: m }); // 🔥 IMPORTANT
+        }, { quoted: m });
       } else {
         await sock.sendMessage(jid, {
           text: caption,
           mentions
-        }, { quoted: m }); // 🔥 IMPORTANT
+        }, { quoted: m });
       }
 
     } catch (err) {
       console.error("Mods command error:", err);
-      reply("❌ Failed to load guardians.");
+      reply("❌ Failed to load staff members.");
     }
   }
 });

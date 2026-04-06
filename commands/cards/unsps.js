@@ -5,13 +5,11 @@ moon({
   name: "unsps",
   category: "cards",
   description: "List all cards that are not spawned and have no owner.",
-  async execute(sock, jid, sender, args, m, { reply }) {
+  async execute(sock, jid, sender, args, m, { reply, isCDC }) {
     try {
-      const senderNumber = sender.split('@')[0];
-
-      const isCreator = config.CARDS_CREATERS?.map(String).includes(senderNumber);
-      if (!isCreator) {
-        return reply("⛔ You don't have permission for that.");
+      // 🛡️ CDC CHECK
+      if (!(await isCDC())) {
+        return reply("⛔ You don't have permission for that. Only Card Creators can use this.");
       }
 
       // Find cards that:

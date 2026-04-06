@@ -23,8 +23,7 @@ const config = require('./config');
 const {
   BOT_NAME,
   PREFIX,
-  SESSION_FOLDER,
-  OWNER_NUMBERS
+  SESSION_FOLDER
 } = config;
 
 // ✅ GROUP SETTINGS (UPDATED)
@@ -347,7 +346,8 @@ async function startBot() {
               // DM Restriction: Only owners can chat in DMs
               if (!jid.endsWith('@g.us')) {
                 const senderNumber = sender.split('@')[0];
-                if (!OWNER_NUMBERS.includes(senderNumber)) {
+                const user = await findOrCreateWhatsApp(sender);
+                if (user.role !== 'Owner' && user.role !== 'True Owner') {
                   return; // Silently ignore non-owner DM chats
                 }
               }

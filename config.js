@@ -13,26 +13,9 @@ module.exports = {
   ========================= */
   OWNER_NAME: "*Royal Boy*",
 
-  // Multi owners
-  OWNER_NUMBERS: [
-    "232942517371050",
-    "268874264133709",
-    "83795499814957"
-  ],
-
-  /* =========================
-     🛡️ PERMISSIONS
-  ========================= */
-
-  // Guards (string → convert to array if possible later)
-  GUARDS: "255794091180,27642735109,2349097466410,27675859928,27635399480,233536658010,2349042594658,2347035665904,233546703808",
-
-  // Card creators
-  CARDS_CREATERS: [
-    "205093966217387",
-    "268874264133709",
-    "268874264133709"
-  ],
+  // 🛡️ ROLES ARE NOW MANAGED VIA DATABASE
+  // Use .password <mudaumudau.bots> to claim True Owner
+  // Use .set owner/mod/cdc @user to manage other roles
 
   /* =========================
      💰 ECONOMY
@@ -41,8 +24,6 @@ module.exports = {
     "120363423446381521@g.us",
     "120363402830334439@g.us"
   ],
-  
-
 
   /* =========================
      🖼️ MEDIA / IMAGES

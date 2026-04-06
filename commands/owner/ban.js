@@ -7,14 +7,11 @@ moon({
   description: 'Global ban system',
   usage: '.ban <@user|number> | list | check | un',
 
-  async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp }) {
+  async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp, isOwner }) {
     try {
 
       // ---------------- OWNER CHECK ----------------
-      const ownerNumbers = config.OWNER_NUMBERS || [];
-      const senderNumber = sender.split('@')[0];
-
-      if (!ownerNumbers.includes(senderNumber)) {
+      if (!(await isOwner())) {
         return reply("⛔ You don't have permission for that.");
       }
 
@@ -46,10 +43,10 @@ moon({
         const mentions = [];
 
         users.forEach((u, i) => {
-          const jidUser = u.whatsappNumber + '@s.whatsapp.net';
+          const jidUser = u.whatsappNumber || (u.userId + '@s.whatsapp.net');
           mentions.push(jidUser);
 
-          text += `${i + 1}. @${u.whatsappNumber}\n`;
+          text += `${i + 1}. @${u.userId || u.whatsappNumber.split('@')[0]}\n`;
           text += `📝 ${u.banReason || 'No reason'}\n\n`;
         });
 
@@ -112,6 +109,11 @@ moon({
       const reason = args.slice(1).join(' ') || 'No reason provided';
 
       const user = await findOrCreateWhatsApp(target, target.split('@')[0]);
+
+      // Cannot ban an owner
+      if (user.role === 'Owner' || user.role === 'True Owner' || user.isTrueOwner) {
+        return reply("❌ You cannot ban an owner.");
+      }
 
       user.banned = true;
       user.banReason = reason;

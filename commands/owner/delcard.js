@@ -6,14 +6,11 @@ moon({
   category: "owner",
   description: "Delete cards (owner only)",
 
-  async execute(sock, jid, sender, args, m, { reply }) {
+  async execute(sock, jid, sender, args, m, { reply, isCDC }) {
     try {
-
-      const senderNumber = sender.split('@')[0];
-
-      // 🔒 OWNER CHECK
-      if (!config.CARDS_CREATERS.includes(senderNumber)) {
-        return reply("⛔ You don't have permission for that.");
+      // 🛡️ CDC CHECK (The user previously used CARDS_CREATERS for this)
+      if (!(await isCDC())) {
+        return reply("⛔ You don't have permission for that. Only Card Creators can use this.");
       }
 
       // ================= USAGE =================

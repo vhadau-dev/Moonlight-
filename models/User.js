@@ -14,6 +14,7 @@ const cardSchema = new mongoose.Schema({
 const userSchema = new mongoose.Schema({
   discordId: { type: String, unique: true, sparse: true },
   whatsappNumber: { type: String, unique: true, sparse: true },
+  userId: { type: String, unique: true, sparse: true }, // For consistency with some commands
 
   username: { type: String, default: 'Unknown' },
 
@@ -23,13 +24,21 @@ const userSchema = new mongoose.Schema({
   totalLost: { type: Number, default: 0 },
   stars: { type: Number, default: 0 },
 
+  // ---------------- ROLE SYSTEM ----------------
+  role: { 
+    type: String, 
+    enum: ['User', 'Mod', 'Owner', 'True Owner', 'CDC'], 
+    default: 'User' 
+  },
+  isTrueOwner: { type: Boolean, default: false }, // Cannot be demoted
+  isCDC: { type: Boolean, default: false }, // Card Creator
+
   // ---------------- PROFILE SYSTEM ----------------
   profileImage: { type: String, default: null },
   backgroundImage: { type: String, default: null },
   videoBackground: { type: String, default: null },
   age: { type: Number, default: 0 },
   bio: { type: String, default: '.' },
-  role: { type: String, default: 'User' },
 
   // ---------------- BAN SYSTEM ----------------
   banned: { type: Boolean, default: false },
@@ -75,9 +84,7 @@ const userSchema = new mongoose.Schema({
   // =========================
   // 🆕 LOTTERY SUPPORT (ADDED)
   // =========================
-
   lotteryEntries: { type: Number, default: 0 }, // total entries across rounds
-
   currentLotteryEntries: { type: Number, default: 0 }, // entries in current round (limit 3)
 
   // ---------------- MESSAGE COUNT ----------------

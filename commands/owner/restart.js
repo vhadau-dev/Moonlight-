@@ -14,12 +14,12 @@ const config = require('../../config');
 moon({
   name: "restart",
   category: "owner",
-  async execute(sock, jid, sender, args, m, { reply }) {
+  async execute(sock, jid, sender, args, m, { reply, isOwner }) {
     try {
       const senderNumber = sender.split('@')[0];
       
       // ── 1. Owner-only check ───────────────────────────────────────────────
-      if (!config.OWNER_NUMBERS || !config.OWNER_NUMBERS.includes(senderNumber)) {
+      if (!(await isOwner())) {
         return reply("⛔ You don't have permission for that.");
       }
 

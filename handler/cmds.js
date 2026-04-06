@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config');
+const { findOrCreateWhatsApp, isTrueOwner, isOwner, isMod, isCDC } = require('../database/users');
 
 // ---------------- STORAGE ----------------
 const commands = new Map();
@@ -113,10 +114,14 @@ https://chat.whatsapp.com/KAG8xDAJmYODIZPWEcntCX`
       // Cleanup cooldown entry after it expires
       setTimeout(() => cooldowns.delete(cooldownKey), cooldownTime * 1000);
 
+      // 🛡️ ROLE PERMISSION HELPERS (Inject into context)
+      context.isTrueOwner = async () => await isTrueOwner(sender);
+      context.isOwner = async () => await isOwner(sender);
+      context.isMod = async () => await isMod(sender);
+      context.isCDC = async () => await isCDC(sender);
+
       // ▶️ RUN COMMAND
       const result = await originalExecute(sock, jid, sender, args, m, context);
-
-      // 📊 PERFORMANCE MONITORING REMOVED
 
       return result;
 
