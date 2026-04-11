@@ -1,3 +1,4 @@
+
 const User = require('../../models/User');
 const config = require('../../config');
 const { generateProfileImage } = require('../../utils/profileGenerator');
@@ -10,9 +11,9 @@ function isOwner(number) {
 
 // ── .profile / .p ──────────────────────────────────────────────────────────
 moon({
-  name: "profile",
+  name: "p",
   category: "profile",
-  aliases: ["p"],
+  aliases: ["prpfile"],
   async execute(sock, jid, sender, args, m, { reply, findOrCreateWhatsApp, pushName }) {
     try {
       const context = m.message?.extendedTextMessage?.contextInfo;
@@ -50,14 +51,14 @@ moon({
         role:         role,
         pfp:          pfp,
         background:   user.backgroundImage || null,
-        bio:          user.bio || '.',
+        bio:          user.bio || '> --bio not set',
         wallet:       wallet,
         bank:         bank,
         messageCount: user.messageCount || 0
       });
 
       const registeredDate = moment(user.createdAt).format('DD/MM/YYYY');
-      const bannedStatus   = user.banned ? "Yes ❌" : "No ✅";
+      const bannedStatus   = user.banned ? "Yes" : "No";
       const total          = wallet + bank;
 
       const cleanStatus = user.bio && user.bio !== '.'
@@ -70,8 +71,8 @@ moon({
  *Age*      : ${user.age || 'N/A'}
 
 *⳹─❖────────❖─⳹*
- *Status*  : ${cleanStatus}
- *Role*    : ${role}
+ *Status*  : player
+ *Role*    : *${role}*
 
  *Wallet*  : ${wallet.toLocaleString()}
  *Bank*    : ${bank.toLocaleString()}
